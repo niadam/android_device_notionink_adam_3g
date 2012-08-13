@@ -30,8 +30,8 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base.mk)
 $(call inherit-product, device/notionink/adam_common/device-common.mk)
 
 # Some files for 3G
-#PRODUCT_COPY_FILES += \
-#    device/notionink/adam/files/rild:/system/bin/rild
+PRODUCT_COPY_FILES += \
+    device/notionink/adam/files/rild:/system/bin/rild
 
 # The gps config appropriate for this device
 $(call inherit-product, device/common/gps/gps_us_supl.mk)
