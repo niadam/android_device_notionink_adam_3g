@@ -12,38 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Camera
 PRODUCT_PACKAGES := \
     Camera \
+    LegacyCamera \
     SpareParts \
     PQiToggle \
     Development \
     libmbm-ril \
     Stk \
-    Mms
+    Mms \
 
 DEVICE_PACKAGE_OVERLAYS += device/notionink/adam_3g/overlay
+
+# Some files for 3G
+PRODUCT_COPY_FILES += \
+    device/notionink/adam_3g/files/rild:/system/bin/rild
+
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base.mk)
 
 # Inherit from ADAM common device tree
 $(call inherit-product, device/notionink/adam_common/device-common.mk)
 
-# Some files for 3G
-PRODUCT_COPY_FILES += \
-    device/notionink/adam/files/rild:/system/bin/rild
-
 # The gps config appropriate for this device
 $(call inherit-product, device/common/gps/gps_us_supl.mk)
 
 $(call inherit-product-if-exists, vendor/notionink/adam/device-vendor.mk)
 
-PRODUCT_NAME := cm_adam_3g
+PRODUCT_NAME := full_adam_3g
 PRODUCT_DEVICE := adam
 PRODUCT_BRAND := NotionInk
 PRODUCT_MODEL := Notion Ink ADAM
 
 $(call inherit-product, device/notionink/adam_common/google_apps.mk)
-
-# Inherit some common CM stuff.
-$(call inherit-product, vendor/cm/config/common_full_tablet_wifionly.mk)

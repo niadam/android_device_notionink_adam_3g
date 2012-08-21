@@ -20,11 +20,11 @@
 # In particular, you can add lunch options with the add_lunch_combo
 # function: add_lunch_combo generic-eng
 export USE_CCACHE=1
-add_lunch_combo cm_adam_3g-userdebug
+add_lunch_combo full_adam_3g-userdebug
 echo ""
 echo "Patching Adam Workspace..."
 echo ""
-for p in $(find device/notionink/adam/patches/ -name "*.diff") 
+for p in $(find device/notionink/adam_3g/patches/ -name "*.diff") 
 	do 
 		echo -n "Apply patch "$(basename $p | awk -F"." '{print $1}')
 		patch -p1 < $p > /dev/null 2>&1
