@@ -40,7 +40,7 @@ $(call inherit-product, device/common/gps/gps_us_supl.mk)
 $(call inherit-product-if-exists, vendor/notionink/adam/device-vendor.mk)
 
 PRODUCT_NAME := full_adam_3g
-PRODUCT_DEVICE := adam
+PRODUCT_DEVICE := adam_3g
 PRODUCT_BRAND := NotionInk
 PRODUCT_MODEL := Notion Ink ADAM
 
