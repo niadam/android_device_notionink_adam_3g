@@ -20,7 +20,7 @@
 # In particular, you can add lunch options with the add_lunch_combo
 # function: add_lunch_combo generic-eng
 export USE_CCACHE=1
-add_lunch_combo full_adam_3g-userdebug
+add_lunch_combo aokp_adam_3g-userdebug
 echo ""
 echo "Patching Adam Workspace..."
 echo ""
