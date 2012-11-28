@@ -54,8 +54,8 @@
          Must be overridden in platform specific overlays -->
     <integer-array name="config_autoBrightnessLevels">
         <item>5</item>
+        <item>10</item>
         <item>15</item>
-        <item>50</item>
         <item>100</item>
         <item>200</item>
         <item>400</item>
@@ -74,9 +74,9 @@
          This must be overridden in platform specific overlays -->
     <integer-array name="config_autoBrightnessLcdBacklightValues">
         <item>5</item>    <!-- 0-5 -->
-        <item>20</item>   <!-- 5-15 -->
-        <item>30</item>   <!-- 15-50 -->
-        <item>40</item>   <!-- 50-100 -->
+        <item>20</item>   <!-- 5-10 -->
+        <item>30</item>   <!-- 10-15 -->
+        <item>40</item>   <!-- 15-100 -->
         <item>50</item>   <!-- 100-200 -->
         <item>60</item>   <!-- 200-400 -->
         <item>70</item>   <!-- 400-1000 -->
@@ -93,27 +93,23 @@
          than the size of the config_autoBrightnessLevels array.
          This must be overridden in platform specific overlays -->
     <integer-array name="config_autoBrightnessButtonBacklightValues">
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
-        <item>0</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
+        <item>255</item>
     </integer-array>
 
     <!-- Minimum screen brightness allowed by the power manager. -->
-    <integer name="config_screenBrightnessDim">5</integer>
+    <integer name="config_screenBrightnessDim">10</integer>
 
     <string-array translatable="false" name="config_tether_usb_regexs">
 	<item>"rndis0"</item>
