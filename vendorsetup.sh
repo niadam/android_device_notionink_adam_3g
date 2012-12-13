@@ -24,15 +24,24 @@ add_lunch_combo aokp_adam_3g-userdebug
 echo ""
 echo "Patching Adam Workspace..."
 echo ""
-for p in $(find device/notionink/adam_3g/patches/ -name "*.diff") 
-	do 
-		echo -n "Apply patch "$(basename $p | awk -F"." '{print $1}')
-		patch -p1 < $p > /dev/null 2>&1
-		if [ $? == 0 ]; then
-			echo "     [DONE]"
-		else
-			echo "     [FAIL]"
-		fi
-		echo "" 
-	done
+for p in $(find device/notionink/adam_3g/patches/ -name "*.diff")
+        do
+                tmp=$(basename $p | awk -F"." '{print $1}')
+                if [ -f $tmp".p" ]; then
+                        echo "Patch "$tmp" already applied"
+                else
+                        echo -n "Apply patch "$tmp
+                        patch -p1 < $p > /dev/null 2>&1
+                        if [ $? == 0 ]; then
+                                echo "     [DONE]"
+                                touch $tmp".p"
+                        else
+                                echo "     [FAIL]"
+                        fi
+                fi
+                echo ""
+        done
+echo "Cleaning .orig and .rej files if any..."
+find . \( -name \*cpp.orig -o -name \*xml.orig -o -name \*.java.orig -o -name \*.h.orig -o -name \*.rej \) -delete
 echo ""
+
