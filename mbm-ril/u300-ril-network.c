@@ -1434,7 +1434,7 @@ void requestSetPreferredNetworkType(void *data, size_t datalen,
     int err = 0;
     int rat;
 
-    RIL_Errno errno = RIL_E_GENERIC_FAILURE;
+    RIL_Errno errorno = RIL_E_GENERIC_FAILURE;
 
     rat = ((int *) data)[0];
 
@@ -1453,7 +1453,7 @@ void requestSetPreferredNetworkType(void *data, size_t datalen,
         ALOGD("[%s] network type = 3g only", __FUNCTION__);
         break;
     default:
-        errno = RIL_E_MODE_NOT_SUPPORTED;
+        errorno = RIL_E_MODE_NOT_SUPPORTED;
         goto error;
     }
 
@@ -1466,7 +1466,7 @@ void requestSetPreferredNetworkType(void *data, size_t datalen,
     }
 
 error:
-    RIL_onRequestComplete(t, errno, NULL, 0);
+    RIL_onRequestComplete(t, errorno, NULL, 0);
 }
 
 /**

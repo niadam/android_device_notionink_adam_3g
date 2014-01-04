@@ -46,6 +46,10 @@ static void *dummyDispatch(void *data, size_t datalen);
 #define dispatchCdmaSubscriptionSource dummyDispatch
 #define dispatchVoiceRadioTech dummyDispatch
 
+#define dispatchDepersonalization dummyDispatch
+#define dispatchImsSms dummyDispatch
+#define dispatchUiccSubscripton dummyDispatch
+
 static void *dispatchCallForward(void *data, size_t datalen);
 static void *dispatchDial(void *data, size_t datalen);
 static void *dispatchSIM_IO(void *data, size_t datalen);
@@ -78,6 +82,10 @@ static void dummyResponse(void);
 #define responseDataCallList dummyResponse
 #define responseGsmBrSmsCnf dummyResponse
 #define responseCdmaBrSmsCnf dummyResponse
+
+#define responseCellInfoList dummyResponse
+#define responseGetDataCallProfile dummyResponse
+#define responseUiccSubscription dummyResponse
 
 #define dispatchDataCall dispatchStrings
 #define responseSetupDataCall responseStrings
