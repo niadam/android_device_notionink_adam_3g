@@ -31,7 +31,7 @@ $(call inherit-product, device/notionink/adam_common/device-common.mk)
 
 # Some files for 3G
 PRODUCT_COPY_FILES += \
-    device/notionink/adam/files/rild:/system/bin/rild
+    device/notionink/adam_3g/files/rild:/system/bin/rild
 
 # The gps config appropriate for this device
 $(call inherit-product, device/common/gps/gps_us_supl.mk)
