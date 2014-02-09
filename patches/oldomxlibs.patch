@@ -1,0 +1,192 @@
+diff --git a/frameworks/av/include/media/AudioTrack.h b/frameworks/av/include/media/AudioTrack.h
+index d3b954b..25fec75 100644
+--- a/frameworks/av/include/media/AudioTrack.h
++++ b/frameworks/av/include/media/AudioTrack.h
+@@ -199,7 +199,20 @@ public:
+                                     int notificationFrames = 0,
+                                     int sessionId       = 0);
+ 
+-    /* Terminates the AudioTrack and unregisters it from AudioFlinger.
++#ifdef BOARD_HAVE_OLD_OMX_LIBS
++                        explicit AudioTrack( int streamType,
++                                    uint32_t sampleRate  = 0,
++                                    int format = AUDIO_FORMAT_DEFAULT,
++                                    int channelMask      = 0,
++                                    int frameCount       = 0,
++                                    uint32_t flags       = (uint32_t) AUDIO_OUTPUT_FLAG_NONE,
++                                    callback_t cbf       = 0,
++                                    void* user           = 0,
++                                    int notificationFrames = 0,
++                                    int sessionId        = 0);
++#endif
++
++/* Terminates the AudioTrack and unregisters it from AudioFlinger.
+      * Also destroys all resources associated with the AudioTrack.
+      */
+                         ~AudioTrack();
+@@ -231,7 +244,11 @@ public:
+      * an uninitialized AudioTrack produces undefined results.
+      * See set() method above for possible return codes.
+      */
++#ifndef BOARD_HAVE_OLD_OMX_LIBS
+             status_t    initCheck() const   { return mStatus; }
++#else
++            status_t    initCheck() const;
++#endif
+ 
+     /* Returns this track's estimated latency in milliseconds.
+      * This includes the latency due to AudioTrack buffer size, AudioMixer (if any)
+@@ -240,18 +257,29 @@ public:
+             uint32_t    latency() const;
+ 
+     /* getters, see constructors and set() */
+-
++#ifndef BOARD_HAVE_OLD_OMX_LIBS
+             audio_stream_type_t streamType() const { return mStreamType; }
+             audio_format_t format() const   { return mFormat; }
++#else
++            audio_stream_type_t streamType() const;
++            audio_format_t format() const;
++#endif
+ 
+     /* Return frame size in bytes, which for linear PCM is channelCount * (bit depth per channel / 8).
+      * channelCount is determined from channelMask, and bit depth comes from format.
+      * For non-linear formats, the frame size is typically 1 byte.
+      */
++#ifndef BOARD_HAVE_OLD_OMX_LIBS
+             uint32_t    channelCount() const { return mChannelCount; }
+ 
+             uint32_t    frameCount() const  { return mFrameCount; }
+             size_t      frameSize() const   { return mFrameSize; }
++#else
++            uint32_t    channelCount() const;
++
++            uint32_t    frameCount() const;
++            size_t      frameSize() const;
++#endif
+ 
+     /* Return the static buffer specified in constructor or set(), or 0 for streaming mode */
+             sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
+@@ -421,7 +449,11 @@ public:
+      * Returned value:
+      *  AudioTrack session ID.
+      */
++#ifndef BOARD_HAVE_OLD_OMX_LIBS
+             int    getSessionId() const { return mSessionId; }
++#else
++            int    getSessionId() const;
++#endif
+ 
+     /* Attach track auxiliary output to specified effect. Use effectId = 0
+      * to detach track from effect.
+diff --git a/frameworks/av/media/libmedia/Android.mk b/frameworks/av/media/libmedia/Android.mk
+index dd6d677..1f05670 100644
+--- a/frameworks/av/media/libmedia/Android.mk
++++ b/frameworks/av/media/libmedia/Android.mk
+@@ -26,6 +26,10 @@ LOCAL_CFLAGS += -DRESOURCE_MANAGER
+ endif
+ # RESOURCE MANAGER
+ 
++ifeq ($(BOARD_HAVE_OLD_OMX_LIBS),true)
++LOCAL_CFLAGS += -DBOARD_HAVE_OLD_OMX_LIBS
++endif
++
+ LOCAL_SRC_FILES:= \
+     AudioTrack.cpp \
+     AudioTrackShared.cpp \
+diff --git a/frameworks/av/media/libmedia/AudioSystem.cpp b/frameworks/av/media/libmedia/AudioSystem.cpp
+index a9628a3..634e72a 100644
+--- a/frameworks/av/media/libmedia/AudioSystem.cpp
++++ b/frameworks/av/media/libmedia/AudioSystem.cpp
+@@ -205,6 +205,13 @@ int AudioSystem::logToLinear(float volume)
+     return volume ? 100 - int(dBConvertInverse * log(volume) + 0.5) : 0;
+ }
+ 
++#ifdef BOARD_HAVE_OLD_OMX_LIBS
++extern "C" status_t _ZN7android11AudioSystem21getOutputSamplingRateEPii(uint32_t* samplingRate, audio_stream_type_t streamType)
++{
++    return AudioSystem::getOutputFrameCount(samplingRate, streamType);
++}
++#endif
++
+ status_t AudioSystem::getOutputSamplingRate(uint32_t* samplingRate, audio_stream_type_t streamType)
+ {
+     audio_io_handle_t output;
+@@ -247,6 +254,13 @@ status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
+     return NO_ERROR;
+ }
+ 
++#ifdef BOARD_HAVE_OLD_OMX_LIBS
++extern "C" status_t _ZN7android11AudioSystem19getOutputFrameCountEPii(size_t* frameCount, audio_stream_type_t streamType)
++{
++    return AudioSystem::getOutputFrameCount(frameCount, streamType);
++}
++#endif
++
+ status_t AudioSystem::getOutputFrameCount(size_t* frameCount, audio_stream_type_t streamType)
+ {
+     audio_io_handle_t output;
+@@ -601,7 +615,6 @@ audio_policy_forced_cfg_t AudioSystem::getForceUse(audio_policy_force_use_t usag
+     return aps->getForceUse(usage);
+ }
+ 
+-
+ audio_io_handle_t AudioSystem::getOutput(audio_stream_type_t stream,
+                                     uint32_t samplingRate,
+                                     audio_format_t format,
+diff --git a/frameworks/av/media/libmedia/AudioTrack.cpp b/frameworks/av/media/libmedia/AudioTrack.cpp
+index e72df2c..19d7ff8 100644
+--- a/frameworks/av/media/libmedia/AudioTrack.cpp
++++ b/frameworks/av/media/libmedia/AudioTrack.cpp
+@@ -53,6 +53,16 @@
+ namespace android {
+ // ---------------------------------------------------------------------------
+ 
++#ifdef BOARD_HAVE_OLD_OMX_LIBS
++audio_stream_type_t  AudioTrack::streamType() const { return mStreamType; }
++audio_format_t  AudioTrack::format() const  { return mFormat; }
++uint32_t    AudioTrack::channelCount() const  { return mChannelCount; }
++uint32_t    AudioTrack::frameCount() const  { return mFrameCount; }
++size_t      AudioTrack::frameSize() const { return mFrameSize; }
++status_t AudioTrack::initCheck() const { return mStatus; }
++int    AudioTrack::getSessionId() const { return mSessionId; }
++#endif
++
+ // static
+ status_t AudioTrack::getMinFrameCount(
+         size_t* frameCount,
+@@ -102,6 +112,34 @@ status_t AudioTrack::getMinFrameCount(
+ }
+ 
+ // ---------------------------------------------------------------------------
++#ifdef BOARD_HAVE_OLD_OMX_LIBS
++// DEPRECATED
++AudioTrack::AudioTrack(
++        int streamType,
++        uint32_t sampleRate,
++        int format,
++        int channelMask,
++        int frameCount,
++        uint32_t flags,
++        callback_t cbf,
++        void* user,
++        int notificationFrames,
++        int sessionId)
++    : mCblk(NULL),
++      mStatus(NO_INIT),
++      mIsTimed(false),
++      mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
++#ifdef QCOM_HARDWARE
++      ,mAudioFlinger(NULL),
++      mObserver(NULL)
++#endif
++{
++    mStatus = set((audio_stream_type_t)streamType, sampleRate, (audio_format_t)format,
++            (audio_channel_mask_t) channelMask,
++            frameCount, (audio_output_flags_t)flags, cbf, user, notificationFrames,
++            0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId);
++}
++#endif
+ 
+ AudioTrack::AudioTrack()
+     : mCblk(NULL),
