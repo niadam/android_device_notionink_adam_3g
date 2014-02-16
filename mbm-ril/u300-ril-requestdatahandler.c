@@ -50,6 +50,8 @@ static void *dummyDispatch(void *data, size_t datalen);
 #define dispatchImsSms dummyDispatch
 #define dispatchUiccSubscripton dummyDispatch
 
+#define dispatchSetInitialAttachApn dummyDispatch
+
 static void *dispatchCallForward(void *data, size_t datalen);
 static void *dispatchDial(void *data, size_t datalen);
 static void *dispatchSIM_IO(void *data, size_t datalen);
@@ -89,6 +91,7 @@ static void dummyResponse(void);
 
 #define dispatchDataCall dispatchStrings
 #define responseSetupDataCall responseStrings
+
 
 /*
 should be looked into how dispatchDataCall and others really should be handled,
