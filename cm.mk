@@ -18,9 +18,7 @@ PRODUCT_PACKAGES := \
     SpareParts \
     PQiToggle \
     Development \
-    libmbm-ril \
-    Stk \
-    Mms
+    libmbm-ril
 
 DEVICE_PACKAGE_OVERLAYS += device/notionink/adam_3g/overlay
 
@@ -43,7 +41,8 @@ PRODUCT_DEVICE := adam_3g
 PRODUCT_BRAND := NotionInk
 PRODUCT_MODEL := Notion Ink ADAM
 
-#$(call inherit-product, device/notionink/adam_common/google_apps.mk)
-
 # Inherit some common CM stuff.
 $(call inherit-product, vendor/cm/config/common_full_tablet_wifionly.mk)
+
+# Inherit telephony common stuff
+$(call inherit-product, vendor/cm/config/telephony.mk)
