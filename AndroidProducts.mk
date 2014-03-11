@@ -14,4 +14,4 @@
 # limitations under the License.
 #
 PRODUCT_MAKEFILES := \
-    device/notionink/adam_3g/cm.mk
+    device/notionink/adam_3g/liquid.mk
