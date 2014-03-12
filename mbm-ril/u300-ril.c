@@ -946,13 +946,13 @@ static void onATTimeout(void)
     setRadioState(RADIO_STATE_UNAVAILABLE);
     signalCloseQueues();
 
-    /* Eperimental reboot of module on HP Touchpad 4G */
+    /* Eperimental reboot of module on NotionInk Adam 3G tablet */
     if (strike == 2) {
         strike = 0;
         ALOGW("*** Cold booting module ***");
-        system("echo 0 > /sys/bus/platform/devices/mdmgpio/mdm_poweron");
+        system("echo 0 > /sys/bus/platform/devices/smba-pm-gsm/power_on");
         sleep(1);
-        system("echo 1 > /sys/bus/platform/devices/mdmgpio/mdm_poweron");
+        system("echo 1 > /sys/bus/platform/devices/smba-pm-gsm/power_on");
     }
 }
 
