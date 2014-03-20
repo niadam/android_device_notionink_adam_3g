@@ -51,3 +51,11 @@ $(call inherit-product, vendor/liquid/config/common_tablet.mk)
 
 # Inherit telephony common stuff
 $(call inherit-product, vendor/liquid/config/telephony.mk)
+
+# Preload bootanimation in to memory
+TARGET_BOOTANIMATION_PRELOAD := true
+TARGET_BOOTANIMATION_TEXTURE_CACHE := false
+TARGET_BOOTANIMATION_USE_RGB565 := true
+TARGET_SCREEN_WIDTH := 1280
+TARGET_SCREEN_HEIGHT := 800
+
