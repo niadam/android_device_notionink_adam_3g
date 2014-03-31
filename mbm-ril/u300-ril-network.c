@@ -1441,18 +1441,30 @@ void requestQueryAvailableNetworks(void *data, size_t datalen, RIL_Token t)
     if (err < 0)
         goto no_current;
 
-    /* Read and skip format */
-    err = at_tok_nextint(&line, &skip);
-    if (err < 0)
+    /* If we're unregistered, we may just get
+       a "+COPS: x" response. */
+    if (!at_tok_hasmore(&line)) {
+        /* Read and skip format */
+        err = at_tok_nextint(&line, &skip);
+        if (err < 0)
+            goto no_current;
+    } else
         goto no_current;
 
-    /* Read current numeric operator */
-    err = at_tok_nextstr(&line, &current);
-    if (err < 0)
+    /* A "+COPS: x, n" response is also possible. */
+    if (!at_tok_hasmore(&line)) {
+        /* Read current numeric operator */
+        err = at_tok_nextstr(&line, &current);
+        if (err < 0)
+            goto no_current;
+    } else
         goto no_current;
 
-    /* Read act (Technology) */
-    err = at_tok_nextint(&line, &current_act);
+    /* A "+COPS: x, n, n" response is also possible. */
+    if (!at_tok_hasmore(&line)) {
+        /* Read act (Technology) */
+        err = at_tok_nextint(&line, &current_act);
+    }
 
 no_current:
 
@@ -1505,8 +1517,10 @@ no_current:
             goto error;
 
         /* Find match for current operator in list */
-        if ((strcmp(numeric, current) == 0) && (act == current_act))
-            status = 2;
+        if ((NULL != current) && (current_act != -1)) {
+            if ((strcmp(numeric, current) == 0) && (act == current_act))
+                status = 2;
+        }
 
         responseArray[i * QUERY_NW_NUM_PARAMS + 0] = alloca(strlen(longAlphaNumeric) + 1);
         strcpy(responseArray[i * QUERY_NW_NUM_PARAMS + 0], longAlphaNumeric);
