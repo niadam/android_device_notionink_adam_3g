@@ -529,6 +529,14 @@ int getSignalStrength(RIL_SignalStrength_v6 *signalStrength){
     int ber;
     int rssi;
 
+    /* Do not get signal strength when screen is off */
+    if (!getScreenState()) {
+        ALOGI("%s() Screen off, no signal strength returned", __func__);
+        signalStrength->GW_SignalStrength.signalStrength = -1;
+        signalStrength->GW_SignalStrength.bitErrorRate = -1;
+        return 0;
+    }
+
     memset(signalStrength, 0, sizeof(RIL_SignalStrength_v6));
 
     signalStrength->LTE_SignalStrength.signalStrength = -1;
