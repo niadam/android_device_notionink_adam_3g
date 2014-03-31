@@ -625,11 +625,23 @@ error:
 void requestNeighboringCellIDs(void *data, size_t datalen, RIL_Token t)
 {
     (void) data; (void) datalen;
+    char prop[PROPERTY_VALUE_MAX];
 
+    /* No cell data available if not regesitered */
     if ((s_cs_status != E2REG_REGISTERED) && (s_ps_status != E2REG_REGISTERED)) {
         No_NCIs(t);
         return;
     }
+
+    /* Do not get nci if screen option set in mbm.ril.config.nci */
+    if (!getScreenState()) {
+        property_get("mbm.ril.config.nci", prop, "screen");
+        if (strstr(prop, "screen")) {
+            No_NCIs(t);
+            return;
+        }
+    }
+
     if (s_gsm_rinfo)        /* GSM (GPRS,2G) */
         Get_GSM_NCIs(t);
     else if (s_umts_rinfo)  /* UTRAN (WCDMA/UMTS, 3G) */
