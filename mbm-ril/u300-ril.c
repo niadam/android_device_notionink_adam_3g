@@ -360,6 +360,7 @@ static char isPrioRequest(int request)
 
 static void processRequest(int request, void *data, size_t datalen, RIL_Token t)
 {
+    char prop[PROPERTY_VALUE_MAX];
     ALOGD("%s() %s", __func__, requestToString(request));
 
     /*
@@ -539,8 +540,15 @@ static void processRequest(int request, void *data, size_t datalen, RIL_Token t)
             requestGprsRegistrationState(request, data, datalen, t);
             break;
         case RIL_REQUEST_GET_NEIGHBORING_CELL_IDS:
-            requestNeighboringCellIDs(data, datalen, t);
-            break;
+            property_get("mbm.ril.config.nci", prop, "no");
+            if (strstr(prop, "no")) {
+                RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
+                break;
+            }
+            else {
+                requestNeighboringCellIDs(data, datalen, t);
+                break;
+            }
 
         /* OEM */
         /* case RIL_REQUEST_OEM_HOOK_RAW:
