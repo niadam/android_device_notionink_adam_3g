@@ -71,7 +71,7 @@
 #define TIMEOUT_SEARCH_FOR_TTY 1 /* Poll every Xs for the port*/
 #define TIMEOUT_EMRDY 15 /* Module should respond at least within 15s */
 #define TIMEOUT_DEVICE_REMOVED 3
-#define MAX_BUF 1024
+#define MAX_BUF 2048
 
 /*** Global Variables ***/
 char* ril_iface;
