@@ -1,7 +1,7 @@
-diff --git a/frameworks/av/include/media/AudioTrack.h b/frameworks/av/include/media/AudioTrack.h
+diff --git a/include/media/AudioTrack.h b/include/media/AudioTrack.h
 index 6537eaa..82e2587 100644
---- a/frameworks/av/include/media/AudioTrack.h
-+++ b/frameworks/av/include/media/AudioTrack.h
+--- a/include/media/AudioTrack.h
++++ b/include/media/AudioTrack.h
 @@ -223,6 +223,19 @@ public:
                                      const audio_offload_info_t *offloadInfo = NULL,
                                      int uid = -1);
@@ -83,10 +83,10 @@ index 6537eaa..82e2587 100644
  
      /* Attach track auxiliary output to specified effect. Use effectId = 0
       * to detach track from effect.
-diff --git a/frameworks/av/media/libmedia/Android.mk b/frameworks/av/media/libmedia/Android.mk
+diff --git a/media/libmedia/Android.mk b/media/libmedia/Android.mk
 index 8204ee2..bdb70ad 100644
---- a/frameworks/av/media/libmedia/Android.mk
-+++ b/frameworks/av/media/libmedia/Android.mk
+--- a/media/libmedia/Android.mk
++++ b/media/libmedia/Android.mk
 @@ -92,6 +92,10 @@ LOCAL_SRC_FILES += SingleStateQueue.cpp
  LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiations.cpp"'
  # Consider a separate a library for SingleStateQueueInstantiations.
@@ -98,10 +98,10 @@ index 8204ee2..bdb70ad 100644
  LOCAL_SHARED_LIBRARIES := \
  	libui liblog libcutils libutils libbinder libsonivox libicuuc libexpat \
          libcamera_client libstagefright_foundation \
-diff --git a/frameworks/av/media/libmedia/AudioSystem.cpp b/frameworks/av/media/libmedia/AudioSystem.cpp
+diff --git a/media/libmedia/AudioSystem.cpp b/media/libmedia/AudioSystem.cpp
 index 2b57118..9acd074 100644
---- a/frameworks/av/media/libmedia/AudioSystem.cpp
-+++ b/frameworks/av/media/libmedia/AudioSystem.cpp
+--- a/media/libmedia/AudioSystem.cpp
++++ b/media/libmedia/AudioSystem.cpp
 @@ -214,6 +214,13 @@ int AudioSystem::logToLinear(float volume)
      return volume ? 100 - int(dBConvertInverse * log(volume) + 0.5) : 0;
  }
@@ -130,10 +130,10 @@ index 2b57118..9acd074 100644
  status_t AudioSystem::getOutputFrameCount(size_t* frameCount, audio_stream_type_t streamType)
  {
      audio_io_handle_t output;
-diff --git a/frameworks/av/media/libmedia/AudioTrack.cpp b/frameworks/av/media/libmedia/AudioTrack.cpp
+diff --git a/media/libmedia/AudioTrack.cpp b/media/libmedia/AudioTrack.cpp
 index e608b51..ebdc215 100644
---- a/frameworks/av/media/libmedia/AudioTrack.cpp
-+++ b/frameworks/av/media/libmedia/AudioTrack.cpp
+--- a/media/libmedia/AudioTrack.cpp
++++ b/media/libmedia/AudioTrack.cpp
 @@ -42,6 +42,22 @@ namespace android {
  // ---------------------------------------------------------------------------
  
