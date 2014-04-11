@@ -22,25 +22,42 @@
 export USE_CCACHE=1
 add_lunch_combo liquid_adam_3g-userdebug
 echo ""
-echo "Patching Adam Workspace..."
+echo "Patching Workspace..."
 echo ""
+
+rootDir=$(pwd)
+
 for p in $(find device/notionink/adam_3g/patches/ -name "*.diff")
         do
-                tmp=$(basename $p | awk -F"." '{print $1}')
-                if [ -f $tmp".p" ]; then
-                        echo "Patch "$tmp" already applied"
+                patchname=$(basename $p | awk -F"." '{print $1}')
+                if [ -f $patchname".p" ]; then
+                        echo "Patch "$patchname" already applied"
                 else
-                        echo -n "Apply patch "$tmp
-                        patch -p1 < $p > /dev/null 2>&1
-                        if [ $? == 0 ]; then
-                                echo "     [DONE]"
-                                touch $tmp".p"
+                        echo -n "Applying patch: "$patchname
+                        echo ""
+
+                        dir=$(echo ${patchname%'-'*} | tr _ /)
+                        echo "To dir: "$dir
+                        if [ -d $dir ]; then
+                                echo "Patch dir exists do patching"
+                                cd $dir
+                                patch -p1 < $rootDir"/"$p > /dev/null 2>&1
+                                cd $rootDir
+                                if [ $? == 0 ]; then
+                                        echo "     [DONE]"
+                                        touch $patchname".p"
+                                else
+                                        echo "     [FAIL]"
+                                fi
+
                         else
-                                echo "     [FAIL]"
+                                echo "ERROR: Dir where patch should be applied doesn't exists. Please check patch name format. It should be dir_dir_dir-patchname.diff"
                         fi
+
                 fi
                 echo ""
         done
+
 echo "Cleaning .orig and .rej files if any..."
 find . \( -name \*cpp.orig -o -name \*xml.orig -o -name \*.h.orig -o -name \*.java.orig -o -name \*.rej \) -delete
 echo ""

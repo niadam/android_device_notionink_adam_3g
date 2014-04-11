@@ -1,7 +1,7 @@
-diff --git a/frameworks/native/services/surfaceflinger/Android.mk b/frameworks/native/services/surfaceflinger/Android.mk
+diff --git a/services/surfaceflinger/Android.mk b/services/surfaceflinger/Android.mk
 index 807c149..6acf364 100644
---- a/frameworks/native/services/surfaceflinger/Android.mk
-+++ b/frameworks/native/services/surfaceflinger/Android.mk
+--- a/services/surfaceflinger/Android.mk
++++ b/services/surfaceflinger/Android.mk
 @@ -48,6 +48,10 @@ ifeq ($(TARGET_DISABLE_TRIPLE_BUFFERING),true)
  	LOCAL_CFLAGS += -DTARGET_DISABLE_TRIPLE_BUFFERING
  endif
@@ -13,12 +13,12 @@ index 807c149..6acf364 100644
  ifeq ($(TARGET_FORCE_HWC_FOR_VIRTUAL_DISPLAYS),true)
      LOCAL_CFLAGS += -DFORCE_HWC_COPY_FOR_VIRTUAL_DISPLAYS
  endif
-diff --git a/frameworks/native/services/surfaceflinger/DisplayDevice.cpp b/frameworks/native/services/surfaceflinger/DisplayDevice.cpp
+diff --git a/services/surfaceflinger/DisplayDevice.cpp b/services/surfaceflinger/DisplayDevice.cpp
 old mode 100755
 new mode 100644
 index f56a1c5..99812d2
---- a/frameworks/native/services/surfaceflinger/DisplayDevice.cpp
-+++ b/frameworks/native/services/surfaceflinger/DisplayDevice.cpp
+--- a/services/surfaceflinger/DisplayDevice.cpp
++++ b/services/surfaceflinger/DisplayDevice.cpp
 @@ -29,6 +29,14 @@
  
  #include <gui/Surface.h>
@@ -99,10 +99,10 @@ index f56a1c5..99812d2
  void DisplayDevice::dump(String8& result) const {
      const Transform& tr(mGlobalTransform);
      result.appendFormat(
-diff --git a/frameworks/native/services/surfaceflinger/DisplayDevice.h b/frameworks/native/services/surfaceflinger/DisplayDevice.h
+diff --git a/services/surfaceflinger/DisplayDevice.h b/services/surfaceflinger/DisplayDevice.h
 index 24ca033..c3abe89 100644
---- a/frameworks/native/services/surfaceflinger/DisplayDevice.h
-+++ b/frameworks/native/services/surfaceflinger/DisplayDevice.h
+--- a/services/surfaceflinger/DisplayDevice.h
++++ b/services/surfaceflinger/DisplayDevice.h
 @@ -159,7 +159,6 @@ public:
       */
      uint32_t getPageFlipCount() const;
@@ -124,10 +124,10 @@ index 24ca033..c3abe89 100644
      int mOrientation;
      // user-provided visible area of the layer stack
      Rect mViewport;
-diff --git a/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp b/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
 index 1432ac3..2bb85e6 100644
---- a/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp
-+++ b/frameworks/native/services/surfaceflinger/SurfaceFlinger.cpp
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
 @@ -741,7 +741,9 @@ status_t SurfaceFlinger::getDisplayInfo(const sp<IBinder>& display, DisplayInfo*
          info->orientation = 0;
      }

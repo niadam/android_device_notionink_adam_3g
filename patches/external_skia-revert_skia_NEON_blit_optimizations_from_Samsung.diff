@@ -1,7 +1,7 @@
-diff --git a/external/skia/Android.mk b/external/skia/Android.mk
+diff --git a/Android.mk b/Android.mk
 index adbd974..3ea7f0f 100644
---- a/external/skia/Android.mk
-+++ b/external/skia/Android.mk
+--- a/Android.mk
++++ b/Android.mk
 @@ -515,20 +515,13 @@ LOCAL_SRC_FILES += \
  ifeq ($(TARGET_ARCH),arm)
  
@@ -24,10 +24,10 @@ index adbd974..3ea7f0f 100644
  endif
  
  LOCAL_SRC_FILES += \
-diff --git a/external/skia/src/core/SkBlitter_RGB16.cpp b/external/skia/src/core/SkBlitter_RGB16.cpp
+diff --git a/src/core/SkBlitter_RGB16.cpp b/src/core/SkBlitter_RGB16.cpp
 index ff770aa..f08ec5b 100644
---- a/external/skia/src/core/SkBlitter_RGB16.cpp
-+++ b/external/skia/src/core/SkBlitter_RGB16.cpp
+--- a/src/core/SkBlitter_RGB16.cpp
++++ b/src/core/SkBlitter_RGB16.cpp
 @@ -553,18 +553,11 @@ extern "C" {
  void skia_androidopt_blend32_16_optimized(uint32_t src, unsigned scale, uint16_t **pdst, int *pcount) __attribute__((weak));
  }
@@ -87,10 +87,10 @@ index ff770aa..f08ec5b 100644
  }
  
  static inline void blend_8_pixels(U8CPU bw, uint16_t dst[], unsigned dst_scale,
-diff --git a/external/skia/src/core/SkPaint.cpp b/external/skia/src/core/SkPaint.cpp
+diff --git a/src/core/SkPaint.cpp b/src/core/SkPaint.cpp
 index f48cd06..9cd1b8f 100644
---- a/external/skia/src/core/SkPaint.cpp
-+++ b/external/skia/src/core/SkPaint.cpp
+--- a/src/core/SkPaint.cpp
++++ b/src/core/SkPaint.cpp
 @@ -35,7 +35,6 @@
  #include "SkTypeface.h"
  #include "SkXfermode.h"
@@ -140,10 +140,10 @@ index f48cd06..9cd1b8f 100644
  
      SkSafeRef(fTypeface);
      SkSafeRef(fPathEffect);
-diff --git a/external/skia/src/core/asm/SkBlitter_RGB16_NEON.S b/external/skia/src/core/asm/SkBlitter_RGB16_NEON.S
+diff --git a/src/core/asm/SkBlitter_RGB16_NEON.S b/src/core/asm/SkBlitter_RGB16_NEON.S
 deleted file mode 100644
 index 8c7201d..0000000
---- a/external/skia/src/core/asm/SkBlitter_RGB16_NEON.S
+--- a/src/core/asm/SkBlitter_RGB16_NEON.S
 +++ /dev/null
 @@ -1,325 +0,0 @@
 -/*
