@@ -1,0 +1,6 @@
+HOW-TO use patch system:
+
+1. Make changes to a git (frameworks/av,bionic,etc)
+2. Do git diff > dir_dir-patchname.diff (for example if in frameworks/av you should use frameworks_av-testpatch.diff)
+3. Move .diff file to patches in device tree
+4. Once vendorsetup.sh is executed it checks if frameworks_av-testpatch.p file exists in root of Android build and if not applies patch to the repo in the name of the patch
