@@ -1,552 +1,81 @@
-diff --git a/libc/arch-arm/tegra2/bionic/memchr.S b/libc/arch-arm/tegra2/bionic/memchr.S
-new file mode 100644
-index 0000000..de8a57c
---- /dev/null
-+++ b/libc/arch-arm/tegra2/bionic/memchr.S
-@@ -0,0 +1,151 @@
-+/* Copyright (c) 2010-2011, Linaro Limited
-+   All rights reserved.
-+
-+   Redistribution and use in source and binary forms, with or without
-+   modification, are permitted provided that the following conditions
-+   are met:
-+
-+      * Redistributions of source code must retain the above copyright
-+      notice, this list of conditions and the following disclaimer.
-+
-+      * Redistributions in binary form must reproduce the above copyright
-+      notice, this list of conditions and the following disclaimer in the
-+      documentation and/or other materials provided with the distribution.
-+
-+      * Neither the name of Linaro Limited nor the names of its
-+      contributors may be used to endorse or promote products derived
-+      from this software without specific prior written permission.
-+
-+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-+
-+   Written by Dave Gilbert <david.gilbert@linaro.org>
-+
-+   This memchr routine is optimised on a Cortex-A9 and should work on
-+   all ARMv7 processors.   It has a fast past for short sizes, and has
-+   an optimised path for large data sets; the worst case is finding the
-+   match early in a large data set. */
-+
-+@ 2011-02-07 david.gilbert@linaro.org
-+@    Extracted from local git a5b438d861
-+@ 2011-07-14 david.gilbert@linaro.org
-+@    Import endianness fix from local git ea786f1b
-+@ 2011-12-07 david.gilbert@linaro.org
-+@    Removed unneeded cbz from align loop
-+
-+	.syntax unified
-+	.arch armv7-a
-+
-+@ this lets us check a flag in a 00/ff byte easily in either endianness
-+#ifdef __ARMEB__
-+#define CHARTSTMASK(c) 1<<(31-(c*8))
-+#else
-+#define CHARTSTMASK(c) 1<<(c*8)
-+#endif
-+	.text
-+	.thumb
-+
-+@ ---------------------------------------------------------------------------
-+	.thumb_func
-+	.align 2
-+	.p2align 4,,15
-+	.global memchr
-+	.type memchr,%function
-+memchr:
-+	@ r0 = start of memory to scan
-+	@ r1 = character to look for
-+	@ r2 = length
-+	@ returns r0 = pointer to character or NULL if not found
-+	and	r1,r1,#0xff	@ Don't think we can trust the caller to actually pass a char
-+
-+	cmp	r2,#16		@ If it's short don't bother with anything clever
-+	blt	20f
-+
-+	tst	r0, #7		@ If it's already aligned skip the next bit
-+	beq	10f
-+
-+	@ Work up to an aligned point
-+5:
-+	ldrb	r3, [r0],#1
-+	subs	r2, r2, #1
-+	cmp	r3, r1
-+	beq	50f		@ If it matches exit found
-+	tst	r0, #7
-+	bne	5b		@ If not aligned yet then do next byte
-+
-+10:
-+	@ At this point, we are aligned, we know we have at least 8 bytes to work with
-+	push	{r4,r5,r6,r7}
-+	orr	r1, r1, r1, lsl #8	@ expand the match word across to all bytes
-+	orr	r1, r1, r1, lsl #16
-+	bic	r4, r2, #7	@ Number of double words to work with
-+	mvns	r7, #0		@ all F's
-+	movs	r3, #0
-+
-+15:
-+	ldmia	r0!,{r5,r6}
-+	subs	r4, r4, #8
-+	eor	r5,r5, r1	@ Get it so that r5,r6 have 00's where the bytes match the target
-+	eor	r6,r6, r1
-+	uadd8	r5, r5, r7	@ Parallel add 0xff - sets the GE bits for anything that wasn't 0
-+	sel	r5, r3, r7	@ bytes are 00 for none-00 bytes, or ff for 00 bytes - NOTE INVERSION
-+	uadd8	r6, r6, r7	@ Parallel add 0xff - sets the GE bits for anything that wasn't 0
-+	sel	r6, r5, r7	@ chained....bytes are 00 for none-00 bytes, or ff for 00 bytes - NOTE INVERSION
-+	cbnz	r6, 60f
-+	bne	15b		@ (Flags from the subs above) If not run out of bytes then go around again
-+
-+	pop	{r4,r5,r6,r7}
-+	and	r1,r1,#0xff	@ Get r1 back to a single character from the expansion above
-+	and	r2,r2,#7	@ Leave the count remaining as the number after the double words have been done
-+
-+20:
-+	cbz	r2, 40f		@ 0 length or hit the end already then not found
-+
-+21:  @ Post aligned section, or just a short call
-+	ldrb	r3,[r0],#1
-+	subs	r2,r2,#1
-+	eor	r3,r3,r1	@ r3 = 0 if match - doesn't break flags from sub
-+	cbz	r3, 50f
-+	bne	21b		@ on r2 flags
-+
-+40:
-+	movs	r0,#0		@ not found
-+	bx	lr
-+
-+50:
-+	subs	r0,r0,#1	@ found
-+	bx	lr
-+
-+60:  @ We're here because the fast path found a hit - now we have to track down exactly which word it was
-+	@ r0 points to the start of the double word after the one that was tested
-+	@ r5 has the 00/ff pattern for the first word, r6 has the chained value
-+	cmp	r5, #0
-+	itte	eq
-+	moveq	r5, r6		@ the end is in the 2nd word
-+	subeq	r0,r0,#3	@ Points to 2nd byte of 2nd word
-+	subne	r0,r0,#7	@ or 2nd byte of 1st word
-+
-+	@ r0 currently points to the 3rd byte of the word containing the hit
-+	tst	r5, # CHARTSTMASK(0)	@ 1st character
-+	bne	61f
-+	adds	r0,r0,#1
-+	tst	r5, # CHARTSTMASK(1)	@ 2nd character
-+	ittt	eq
-+	addeq	r0,r0,#1
-+	tsteq	r5, # (3<<15)		@ 2nd & 3rd character
-+	@ If not the 3rd must be the last one
-+	addeq	r0,r0,#1
-+
-+61:
-+	pop	{r4,r5,r6,r7}
-+	subs	r0,r0,#1
-+	bx	lr
 diff --git a/libc/arch-arm/tegra2/bionic/memcpy.S b/libc/arch-arm/tegra2/bionic/memcpy.S
-new file mode 100644
-index 0000000..e90a48f
---- /dev/null
+index 6890a55..e90a48f 100644
+--- a/libc/arch-arm/tegra2/bionic/memcpy.S
 +++ b/libc/arch-arm/tegra2/bionic/memcpy.S
-@@ -0,0 +1,403 @@
-+/*
-+ * Copyright (C) 2008 The Android Open Source Project
-+ * All rights reserved.
-+ *
-+ * Redistribution and use in source and binary forms, with or without
-+ * modification, are permitted provided that the following conditions
-+ * are met:
-+ *  * Redistributions of source code must retain the above copyright
-+ *    notice, this list of conditions and the following disclaimer.
-+ *  * Redistributions in binary form must reproduce the above copyright
-+ *    notice, this list of conditions and the following disclaimer in
-+ *    the documentation and/or other materials provided with the
-+ *    distribution.
-+ *
-+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-+ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-+ * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
-+ * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-+ * SUCH DAMAGE.
-+ */
-+
-+#include <machine/cpu-features.h>
-+#include <machine/asm.h>
+@@ -28,6 +28,7 @@
+ 
+ #include <machine/cpu-features.h>
+ #include <machine/asm.h>
 +#include "libc_events.h"
-+
-+        /*
-+         * Optimized memcpy() for ARM.
-+         *
-+         * note that memcpy() always returns the destination pointer,
-+         * so we have to preserve R0.
-+         */
+ 
+         /*
+          * Optimized memcpy() for ARM.
+@@ -35,6 +36,12 @@
+          * note that memcpy() always returns the destination pointer,
+          * so we have to preserve R0.
+          */
 +ENTRY(__memcpy_chk)
 +        cmp         r2, r3
 +        bgt         fortify_check_failed
 +
 +        // Fall through to memcpy...
 +END(__memcpy_chk)
-+
-+ENTRY(memcpy)
-+        /* The stack must always be 64-bits aligned to be compliant with the
-+         * ARM ABI. Since we have to save R0, we might as well save R4
-+         * which we can use for better pipelining of the reads below
-+         */
-+        .save       {r0, r4, lr}
-+        stmfd       sp!, {r0, r4, lr}
-+        /* Making room for r5-r11 which will be spilled later */
-+        .pad        #28
-+        sub         sp, sp, #28
-+
-+        // preload the destination because we'll align it to a cache line
-+        // with small writes. Also start the source "pump".
+ 
+ ENTRY(memcpy)
+         /* The stack must always be 64-bits aligned to be compliant with the
+@@ -49,9 +56,9 @@ ENTRY(memcpy)
+ 
+         // preload the destination because we'll align it to a cache line
+         // with small writes. Also start the source "pump".
+-        PLD         (r0, #0)
+-        PLD         (r1, #0)
+-        PLD         (r1, #32)
 +        pld         [r0, #0]
 +        pld         [r1, #0]
 +        pld         [r1, #32]
-+
-+        /* it simplifies things to take care of len<4 early */
-+        cmp         r2, #4
-+        blo         copy_last_3_and_return
-+
-+        /* compute the offset to align the source
-+         * offset = (4-(src&3))&3 = -src & 3
-+         */
-+        rsb         r3, r1, #0
-+        ands        r3, r3, #3
-+        beq         src_aligned
-+
-+        /* align source to 32 bits. We need to insert 2 instructions between
-+         * a ldr[b|h] and str[b|h] because byte and half-word instructions
-+         * stall 2 cycles.
-+         */
-+        movs        r12, r3, lsl #31
-+        sub         r2, r2, r3      /* we know that r3 <= r2 because r2 >= 4 */
-+        ldrmib      r3, [r1], #1
-+        ldrcsb      r4, [r1], #1
-+        ldrcsb      r12,[r1], #1
-+        strmib      r3, [r0], #1
-+        strcsb      r4, [r0], #1
-+        strcsb      r12,[r0], #1
-+
-+src_aligned:
-+
-+        /* see if src and dst are aligned together (congruent) */
-+        eor         r12, r0, r1
-+        tst         r12, #3
-+        bne         non_congruent
-+
-+        /* Use post-incriment mode for stm to spill r5-r11 to reserved stack
-+         * frame. Don't update sp.
-+         */
-+        stmea       sp, {r5-r11}
-+
-+        /* align the destination to a cache-line */
-+        rsb         r3, r0, #0
-+        ands        r3, r3, #0x1C
-+        beq         congruent_aligned32
-+        cmp         r3, r2
-+        andhi       r3, r2, #0x1C
-+
-+        /* conditionally copies 0 to 7 words (length in r3) */
-+        movs        r12, r3, lsl #28
-+        ldmcsia     r1!, {r4, r5, r6, r7}   /* 16 bytes */
-+        ldmmiia     r1!, {r8, r9}           /*  8 bytes */
-+        stmcsia     r0!, {r4, r5, r6, r7}
-+        stmmiia     r0!, {r8, r9}
-+        tst         r3, #0x4
-+        ldrne       r10,[r1], #4            /*  4 bytes */
-+        strne       r10,[r0], #4
-+        sub         r2, r2, r3
-+
-+congruent_aligned32:
-+        /*
-+         * here source is aligned to 32 bytes.
-+         */
-+
-+cached_aligned32:
-+        subs        r2, r2, #32
-+        blo         less_than_32_left
-+
-+        /*
-+         * We preload a cache-line up to 64 bytes ahead. On the 926, this will
-+         * stall only until the requested world is fetched, but the linefill
-+         * continues in the the background.
-+         * While the linefill is going, we write our previous cache-line
-+         * into the write-buffer (which should have some free space).
-+         * When the linefill is done, the writebuffer will
-+         * start dumping its content into memory
-+         *
-+         * While all this is going, we then load a full cache line into
-+         * 8 registers, this cache line should be in the cache by now
-+         * (or partly in the cache).
-+         *
-+         * This code should work well regardless of the source/dest alignment.
-+         *
-+         */
-+
-+        // Align the preload register to a cache-line because the cpu does
-+        // "critical word first" (the first word requested is loaded first).
-+        bic         r12, r1, #0x1F
-+        add         r12, r12, #64
-+
-+1:      ldmia       r1!, { r4-r11 }
+ 
+         /* it simplifies things to take care of len<4 early */
+         cmp         r2, #4
+@@ -139,7 +146,7 @@ cached_aligned32:
+         add         r12, r12, #64
+ 
+ 1:      ldmia       r1!, { r4-r11 }
+-        PLD         (r12, #64)
 +        pld         [r12, #64]
-+        subs        r2, r2, #32
-+
-+        // NOTE: if r12 is more than 64 ahead of r1, the following ldrhi
-+        // for ARM9 preload will not be safely guarded by the preceding subs.
-+        // When it is safely guarded the only possibility to have SIGSEGV here
-+        // is because the caller overstates the length.
-+        ldrhi       r3, [r12], #32      /* cheap ARM9 preload */
-+        stmia       r0!, { r4-r11 }
-+        bhs         1b
-+
-+        add         r2, r2, #32
-+
-+
-+
-+
-+less_than_32_left:
-+        /*
-+         * less than 32 bytes left at this point (length in r2)
-+         */
-+
-+        /* skip all this if there is nothing to do, which should
-+         * be a common case (if not executed the code below takes
-+         * about 16 cycles)
-+         */
-+        tst         r2, #0x1F
-+        beq         1f
-+
-+        /* conditionnaly copies 0 to 31 bytes */
-+        movs        r12, r2, lsl #28
-+        ldmcsia     r1!, {r4, r5, r6, r7}   /* 16 bytes */
-+        ldmmiia     r1!, {r8, r9}           /*  8 bytes */
-+        stmcsia     r0!, {r4, r5, r6, r7}
-+        stmmiia     r0!, {r8, r9}
-+        movs        r12, r2, lsl #30
-+        ldrcs       r3, [r1], #4            /*  4 bytes */
-+        ldrmih      r4, [r1], #2            /*  2 bytes */
-+        strcs       r3, [r0], #4
-+        strmih      r4, [r0], #2
-+        tst         r2, #0x1
-+        ldrneb      r3, [r1]                /*  last byte  */
-+        strneb      r3, [r0]
-+
-+        /* we're done! restore everything and return */
-+1:      ldmfd       sp!, {r5-r11}
-+        ldmfd       sp!, {r0, r4, lr}
-+        bx          lr
-+
-+        /********************************************************************/
-+
-+non_congruent:
-+        /*
-+         * here source is aligned to 4 bytes
-+         * but destination is not.
-+         *
-+         * in the code below r2 is the number of bytes read
-+         * (the number of bytes written is always smaller, because we have
-+         * partial words in the shift queue)
-+         */
-+        cmp         r2, #4
-+        blo         copy_last_3_and_return
-+
-+        /* Use post-incriment mode for stm to spill r5-r11 to reserved stack
-+         * frame. Don't update sp.
-+         */
-+        stmea       sp, {r5-r11}
-+
-+        /* compute shifts needed to align src to dest */
-+        rsb         r5, r0, #0
-+        and         r5, r5, #3          /* r5 = # bytes in partial words */
-+        mov         r12, r5, lsl #3     /* r12 = right */
-+        rsb         lr, r12, #32        /* lr = left  */
-+
-+        /* read the first word */
-+        ldr         r3, [r1], #4
-+        sub         r2, r2, #4
-+
-+        /* write a partial word (0 to 3 bytes), such that destination
-+         * becomes aligned to 32 bits (r5 = nb of words to copy for alignment)
-+         */
-+        movs        r5, r5, lsl #31
-+        strmib      r3, [r0], #1
-+        movmi       r3, r3, lsr #8
-+        strcsb      r3, [r0], #1
-+        movcs       r3, r3, lsr #8
-+        strcsb      r3, [r0], #1
-+        movcs       r3, r3, lsr #8
-+
-+        cmp         r2, #4
-+        blo         partial_word_tail
-+
-+        /* Align destination to 32 bytes (cache line boundary) */
-+1:      tst         r0, #0x1c
-+        beq         2f
-+        ldr         r5, [r1], #4
-+        sub         r2, r2, #4
-+        orr         r4, r3, r5,     lsl lr
-+        mov         r3, r5,         lsr r12
-+        str         r4, [r0], #4
-+        cmp         r2, #4
-+        bhs         1b
-+        blo         partial_word_tail
-+
-+        /* copy 32 bytes at a time */
-+2:      subs        r2, r2, #32
-+        blo         less_than_thirtytwo
-+
-+        /* Use immediate mode for the shifts, because there is an extra cycle
-+         * for register shifts, which could account for up to 50% of
-+         * performance hit.
-+         */
-+
-+        cmp         r12, #24
-+        beq         loop24
-+        cmp         r12, #8
-+        beq         loop8
-+
-+loop16:
-+        ldr         r12, [r1], #4
-+1:      mov         r4, r12
-+        ldmia       r1!, {   r5,r6,r7,  r8,r9,r10,r11}
+         subs        r2, r2, #32
+ 
+         // NOTE: if r12 is more than 64 ahead of r1, the following ldrhi
+@@ -260,7 +267,7 @@ loop16:
+         ldr         r12, [r1], #4
+ 1:      mov         r4, r12
+         ldmia       r1!, {   r5,r6,r7,  r8,r9,r10,r11}
+-        PLD         (r1, #64)
 +        pld         [r1, #64]
-+        subs        r2, r2, #32
-+        ldrhs       r12, [r1], #4
-+        orr         r3, r3, r4,     lsl #16
-+        mov         r4, r4,         lsr #16
-+        orr         r4, r4, r5,     lsl #16
-+        mov         r5, r5,         lsr #16
-+        orr         r5, r5, r6,     lsl #16
-+        mov         r6, r6,         lsr #16
-+        orr         r6, r6, r7,     lsl #16
-+        mov         r7, r7,         lsr #16
-+        orr         r7, r7, r8,     lsl #16
-+        mov         r8, r8,         lsr #16
-+        orr         r8, r8, r9,     lsl #16
-+        mov         r9, r9,         lsr #16
-+        orr         r9, r9, r10,    lsl #16
-+        mov         r10, r10,       lsr #16
-+        orr         r10, r10, r11,  lsl #16
-+        stmia       r0!, {r3,r4,r5,r6, r7,r8,r9,r10}
-+        mov         r3, r11,        lsr #16
-+        bhs         1b
-+        b           less_than_thirtytwo
-+
-+loop8:
-+        ldr         r12, [r1], #4
-+1:      mov         r4, r12
-+        ldmia       r1!, {   r5,r6,r7,  r8,r9,r10,r11}
+         subs        r2, r2, #32
+         ldrhs       r12, [r1], #4
+         orr         r3, r3, r4,     lsl #16
+@@ -287,7 +294,7 @@ loop8:
+         ldr         r12, [r1], #4
+ 1:      mov         r4, r12
+         ldmia       r1!, {   r5,r6,r7,  r8,r9,r10,r11}
+-        PLD         (r1, #64)
 +        pld         [r1, #64]
-+        subs        r2, r2, #32
-+        ldrhs       r12, [r1], #4
-+        orr         r3, r3, r4,     lsl #24
-+        mov         r4, r4,         lsr #8
-+        orr         r4, r4, r5,     lsl #24
-+        mov         r5, r5,         lsr #8
-+        orr         r5, r5, r6,     lsl #24
-+        mov         r6, r6,         lsr #8
-+        orr         r6, r6, r7,     lsl #24
-+        mov         r7, r7,         lsr #8
-+        orr         r7, r7, r8,     lsl #24
-+        mov         r8, r8,         lsr #8
-+        orr         r8, r8, r9,     lsl #24
-+        mov         r9, r9,         lsr #8
-+        orr         r9, r9, r10,    lsl #24
-+        mov         r10, r10,       lsr #8
-+        orr         r10, r10, r11,  lsl #24
-+        stmia       r0!, {r3,r4,r5,r6, r7,r8,r9,r10}
-+        mov         r3, r11,        lsr #8
-+        bhs         1b
-+        b           less_than_thirtytwo
-+
-+loop24:
-+        ldr         r12, [r1], #4
-+1:      mov         r4, r12
-+        ldmia       r1!, {   r5,r6,r7,  r8,r9,r10,r11}
+         subs        r2, r2, #32
+         ldrhs       r12, [r1], #4
+         orr         r3, r3, r4,     lsl #24
+@@ -314,7 +321,7 @@ loop24:
+         ldr         r12, [r1], #4
+ 1:      mov         r4, r12
+         ldmia       r1!, {   r5,r6,r7,  r8,r9,r10,r11}
+-        PLD         (r1, #64)
 +        pld         [r1, #64]
-+        subs        r2, r2, #32
-+        ldrhs       r12, [r1], #4
-+        orr         r3, r3, r4,     lsl #8
-+        mov         r4, r4,         lsr #24
-+        orr         r4, r4, r5,     lsl #8
-+        mov         r5, r5,         lsr #24
-+        orr         r5, r5, r6,     lsl #8
-+        mov         r6, r6,         lsr #24
-+        orr         r6, r6, r7,     lsl #8
-+        mov         r7, r7,         lsr #24
-+        orr         r7, r7, r8,     lsl #8
-+        mov         r8, r8,         lsr #24
-+        orr         r8, r8, r9,     lsl #8
-+        mov         r9, r9,         lsr #24
-+        orr         r9, r9, r10,    lsl #8
-+        mov         r10, r10,       lsr #24
-+        orr         r10, r10, r11,  lsl #8
-+        stmia       r0!, {r3,r4,r5,r6, r7,r8,r9,r10}
-+        mov         r3, r11,        lsr #24
-+        bhs         1b
-+
-+
-+less_than_thirtytwo:
-+        /* copy the last 0 to 31 bytes of the source */
-+        rsb         r12, lr, #32        /* we corrupted r12, recompute it  */
-+        add         r2, r2, #32
-+        cmp         r2, #4
-+        blo         partial_word_tail
-+
-+1:      ldr         r5, [r1], #4
-+        sub         r2, r2, #4
-+        orr         r4, r3, r5,     lsl lr
-+        mov         r3, r5,         lsr r12
-+        str         r4, [r0], #4
-+        cmp         r2, #4
-+        bhs         1b
-+
-+partial_word_tail:
-+        /* we have a partial word in the input buffer */
-+        movs        r5, lr, lsl #(31-3)
-+        strmib      r3, [r0], #1
-+        movmi       r3, r3, lsr #8
-+        strcsb      r3, [r0], #1
-+        movcs       r3, r3, lsr #8
-+        strcsb      r3, [r0], #1
-+
-+        /* Refill spilled registers from the stack. Don't update sp. */
-+        ldmfd       sp, {r5-r11}
-+
-+copy_last_3_and_return:
-+        movs        r2, r2, lsl #31 /* copy remaining 0, 1, 2 or 3 bytes */
-+        ldrmib      r2, [r1], #1
-+        ldrcsb      r3, [r1], #1
-+        ldrcsb      r12,[r1]
-+        strmib      r2, [r0], #1
-+        strcsb      r3, [r0], #1
-+        strcsb      r12,[r0]
-+
-+        /* we're done! restore sp and spilled registers and return */
-+        add         sp,  sp, #28
-+        ldmfd       sp!, {r0, r4, lr}
-+        bx          lr
+         subs        r2, r2, #32
+         ldrhs       r12, [r1], #4
+         orr         r3, r3, r4,     lsl #8
+@@ -377,4 +384,20 @@ copy_last_3_and_return:
+         add         sp,  sp, #28
+         ldmfd       sp!, {r0, r4, lr}
+         bx          lr
 +
 +        // Only reached when the __memcpy_chk check fails.
 +fortify_check_failed:
@@ -559,53 +88,26 @@ index 0000000..e90a48f
 +        .word   BIONIC_EVENT_MEMCPY_BUFFER_OVERFLOW
 +error_message:
 +        .word   error_string-(1b+8)
-+END(memcpy)
+ END(memcpy)
 +
 +        .data
 +error_string:
 +        .string     "memcpy buffer overflow"
 diff --git a/libc/arch-arm/tegra2/bionic/memset.S b/libc/arch-arm/tegra2/bionic/memset.S
-new file mode 100644
-index 0000000..56978c9
---- /dev/null
+index 3c034e0..56978c9 100644
+--- a/libc/arch-arm/tegra2/bionic/memset.S
 +++ b/libc/arch-arm/tegra2/bionic/memset.S
-@@ -0,0 +1,132 @@
-+/*
-+ * Copyright (C) 2008 The Android Open Source Project
-+ * All rights reserved.
-+ *
-+ * Redistribution and use in source and binary forms, with or without
-+ * modification, are permitted provided that the following conditions
-+ * are met:
-+ *  * Redistributions of source code must retain the above copyright
-+ *    notice, this list of conditions and the following disclaimer.
-+ *  * Redistributions in binary form must reproduce the above copyright
-+ *    notice, this list of conditions and the following disclaimer in
-+ *    the documentation and/or other materials provided with the
-+ *    distribution.
-+ *
-+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-+ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-+ * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
-+ * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-+ * SUCH DAMAGE.
-+ */
-+
-+#include <machine/asm.h>
+@@ -27,16 +27,35 @@
+  */
+ 
+ #include <machine/asm.h>
 +#include "libc_events.h"
-+
-+        /*
-+         * Optimized memset() for ARM.
-+         *
-+         * memset() returns its first argument.
-+         */
+ 
+         /*
+          * Optimized memset() for ARM.
+          *
+          * memset() returns its first argument.
+          */
 +ENTRY(__memset_chk)
 +        cmp         r2, r3
 +        bls         done
@@ -621,742 +123,60 @@ index 0000000..56978c9
 +        .word       error_string-(1b+8)
 +
 +END(__memset_chk)
-+
-+ENTRY(bzero)
-+        mov     r2, r1
-+        mov     r1, #0
+ 
+ ENTRY(bzero)
+         mov     r2, r1
+         mov     r1, #0
 +
 +done:
 +          // Fall through to memset...
-+END(bzero)
-+
-+ENTRY(memset)
-+        /* compute the offset to align the destination
-+         * offset = (4-(src&3))&3 = -src & 3
-+         */
-+        .save       {r0, r4-r7, lr}
-+        stmfd       sp!, {r0, r4-r7, lr}
-+        rsb         r3, r0, #0
-+        ands        r3, r3, #3
-+        cmp         r3, r2
-+        movhi       r3, r2
-+
-+        /* splat r1 */
-+        mov         r1, r1, lsl #24
-+        orr         r1, r1, r1, lsr #8
-+        orr         r1, r1, r1, lsr #16
-+
-+        movs        r12, r3, lsl #31
-+        strcsb      r1, [r0], #1    /* can't use strh (alignment unknown) */
-+        strcsb      r1, [r0], #1
-+        strmib      r1, [r0], #1
-+        subs        r2, r2, r3
-+        ldmlsfd     sp!, {r0, r4-r7, lr}    /* return */
-+        bxls        lr
-+
-+        /* align the destination to a cache-line */
-+        mov         r12, r1
-+        mov         lr, r1
-+        mov         r4, r1
-+        mov         r5, r1
-+        mov         r6, r1
-+        mov         r7, r1
-+
-+        rsb         r3, r0, #0
-+        ands        r3, r3, #0x1C
-+        beq         3f
-+        cmp         r3, r2
-+        andhi       r3, r2, #0x1C
-+        sub         r2, r2, r3
-+
-+        /* conditionally writes 0 to 7 words (length in r3) */
-+        movs        r3, r3, lsl #28
-+        stmcsia     r0!, {r1, lr}
-+        stmcsia     r0!, {r1, lr}
-+        stmmiia     r0!, {r1, lr}
-+        movs        r3, r3, lsl #2
-+        strcs       r1, [r0], #4
-+
-+3:
-+        subs        r2, r2, #32
-+        mov         r3, r1
-+        bmi         2f
-+1:      subs        r2, r2, #32
-+        stmia       r0!, {r1,r3,r4,r5,r6,r7,r12,lr}
-+        bhs         1b
-+2:      add         r2, r2, #32
-+
-+        /* conditionally stores 0 to 31 bytes */
-+        movs        r2, r2, lsl #28
-+        stmcsia     r0!, {r1,r3,r12,lr}
-+        stmmiia     r0!, {r1, lr}
-+        movs        r2, r2, lsl #2
-+        strcs       r1, [r0], #4
-+        strmih      r1, [r0], #2
-+        movs        r2, r2, lsl #2
-+        strcsb      r1, [r0]
-+        ldmfd       sp!, {r0, r4-r7, lr}
-+        bx          lr
-+END(memset)
+ END(bzero)
+ 
+ ENTRY(memset)
+@@ -107,3 +126,7 @@ ENTRY(memset)
+         ldmfd       sp!, {r0, r4-r7, lr}
+         bx          lr
+ END(memset)
 +
 +        .data
 +error_string:
 +        .string     "memset buffer overflow"
-diff --git a/libc/arch-arm/tegra2/bionic/strcmp.S b/libc/arch-arm/tegra2/bionic/strcmp.S
-new file mode 100644
-index 0000000..7aff7c4
---- /dev/null
-+++ b/libc/arch-arm/tegra2/bionic/strcmp.S
-@@ -0,0 +1,377 @@
-+/*
-+ * Copyright (c) 2013 ARM Ltd
-+ * All rights reserved.
-+ *
-+ * Redistribution and use in source and binary forms, with or without
-+ * modification, are permitted provided that the following conditions
-+ * are met:
-+ * 1. Redistributions of source code must retain the above copyright
-+ *    notice, this list of conditions and the following disclaimer.
-+ * 2. Redistributions in binary form must reproduce the above copyright
-+ *    notice, this list of conditions and the following disclaimer in the
-+ *    documentation and/or other materials provided with the distribution.
-+ * 3. The name of the company may not be used to endorse or promote
-+ *    products derived from this software without specific prior written
-+ *    permission.
-+ *
-+ * THIS SOFTWARE IS PROVIDED BY ARM LTD ``AS IS'' AND ANY EXPRESS OR IMPLIED
-+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-+ * IN NO EVENT SHALL ARM LTD BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
-+ * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-+ */
-+
-+#include <machine/cpu-features.h>
-+#include <machine/asm.h>
-+
-+#ifdef __ARMEB__
-+#define S2LOMEM lsl
-+#define S2LOMEMEQ lsleq
-+#define S2HIMEM lsr
-+#define MSB 0x000000ff
-+#define LSB 0xff000000
-+#define BYTE0_OFFSET 24
-+#define BYTE1_OFFSET 16
-+#define BYTE2_OFFSET 8
-+#define BYTE3_OFFSET 0
-+#else /* not  __ARMEB__ */
-+#define S2LOMEM lsr
-+#define S2LOMEMEQ lsreq
-+#define S2HIMEM lsl
-+#define BYTE0_OFFSET 0
-+#define BYTE1_OFFSET 8
-+#define BYTE2_OFFSET 16
-+#define BYTE3_OFFSET 24
-+#define MSB 0xff000000
-+#define LSB 0x000000ff
-+#endif /* not  __ARMEB__ */
-+
-+.syntax         unified
-+
-+#if defined (__thumb__)
-+        .thumb
-+        .thumb_func
-+#endif
-+
-+ENTRY(strcmp)
-+      /* Use LDRD whenever possible.  */
-+
-+/* The main thing to look out for when comparing large blocks is that
-+   the loads do not cross a page boundary when loading past the index
-+   of the byte with the first difference or the first string-terminator.
-+
-+   For example, if the strings are identical and the string-terminator
-+   is at index k, byte by byte comparison will not load beyond address
-+   s1+k and s2+k; word by word comparison may load up to 3 bytes beyond
-+   k; double word - up to 7 bytes.  If the load of these bytes crosses
-+   a page boundary, it might cause a memory fault (if the page is not mapped)
-+   that would not have happened in byte by byte comparison.
-+
-+   If an address is (double) word aligned, then a load of a (double) word
-+   from that address will not cross a page boundary.
-+   Therefore, the algorithm below considers word and double-word alignment
-+   of strings separately.  */
-+
-+/* High-level description of the algorithm.
-+
-+   * The fast path: if both strings are double-word aligned,
-+     use LDRD to load two words from each string in every loop iteration.
-+   * If the strings have the same offset from a word boundary,
-+     use LDRB to load and compare byte by byte until
-+     the first string is aligned to a word boundary (at most 3 bytes).
-+     This is optimized for quick return on short unaligned strings.
-+   * If the strings have the same offset from a double-word boundary,
-+     use LDRD to load two words from each string in every loop iteration, as in the fast path.
-+   * If the strings do not have the same offset from a double-word boundary,
-+     load a word from the second string before the loop to initialize the queue.
-+     Use LDRD to load two words from every string in every loop iteration.
-+     Inside the loop, load the second word from the second string only after comparing
-+     the first word, using the queued value, to guarantee safety across page boundaries.
-+   * If the strings do not have the same offset from a word boundary,
-+     use LDR and a shift queue. Order of loads and comparisons matters,
-+     similarly to the previous case.
-+
-+   * Use UADD8 and SEL to compare words, and use REV and CLZ to compute the return value.
-+   * The only difference between ARM and Thumb modes is the use of CBZ instruction.
-+   * The only difference between big and little endian is the use of REV in little endian
-+     to compute the return value, instead of MOV.
-+*/
-+
-+        .macro m_cbz reg label
-+#ifdef __thumb2__
-+        cbz     \reg, \label
-+#else   /* not defined __thumb2__ */
-+        cmp     \reg, #0
-+        beq     \label
-+#endif /* not defined __thumb2__ */
-+        .endm /* m_cbz */
-+
-+        .macro m_cbnz reg label
-+#ifdef __thumb2__
-+        cbnz    \reg, \label
-+#else   /* not defined __thumb2__ */
-+        cmp     \reg, #0
-+        bne     \label
-+#endif /* not defined __thumb2__ */
-+        .endm /* m_cbnz */
-+
-+        .macro  init
-+        /* Macro to save temporary registers and prepare magic values.  */
-+        subs    sp, sp, #16
-+        strd    r4, r5, [sp, #8]
-+        strd    r6, r7, [sp]
-+        mvn     r6, #0  /* all F */
-+        mov     r7, #0  /* all 0 */
-+        .endm   /* init */
-+
-+        .macro  magic_compare_and_branch w1 w2 label
-+        /* Macro to compare registers w1 and w2 and conditionally branch to label.  */
-+        cmp     \w1, \w2        /* Are w1 and w2 the same?  */
-+        magic_find_zero_bytes \w1
-+        it      eq
-+        cmpeq   ip, #0          /* Is there a zero byte in w1?  */
-+        bne     \label
-+        .endm /* magic_compare_and_branch */
-+
-+        .macro  magic_find_zero_bytes w1
-+        /* Macro to find all-zero bytes in w1, result is in ip.  */
-+#if (defined (__ARM_FEATURE_DSP))
-+        uadd8   ip, \w1, r6
-+        sel     ip, r7, r6
-+#else /* not defined (__ARM_FEATURE_DSP) */
-+        /* __ARM_FEATURE_DSP is not defined for some Cortex-M processors.
-+        Coincidently, these processors only have Thumb-2 mode, where we can use the
-+        the (large) magic constant available directly as an immediate in instructions.
-+        Note that we cannot use the magic constant in ARM mode, where we need
-+        to create the constant in a register.  */
-+        sub     ip, \w1, #0x01010101
-+        bic     ip, ip, \w1
-+        and     ip, ip, #0x80808080
-+#endif /* not defined (__ARM_FEATURE_DSP) */
-+        .endm /* magic_find_zero_bytes */
-+
-+        .macro  setup_return w1 w2
-+#ifdef __ARMEB__
-+        mov     r1, \w1
-+        mov     r2, \w2
-+#else /* not  __ARMEB__ */
-+        rev     r1, \w1
-+        rev     r2, \w2
-+#endif /* not  __ARMEB__ */
-+        .endm /* setup_return */
-+
-+        pld [r0, #0]
-+        pld [r1, #0]
-+
-+        /* Are both strings double-word aligned?  */
-+        orr     ip, r0, r1
-+        tst     ip, #7
-+        bne     do_align
-+
-+        /* Fast path.  */
-+        init
-+
-+doubleword_aligned:
-+
-+        /* Get here when the strings to compare are double-word aligned.  */
-+        /* Compare two words in every iteration.  */
-+        .p2align        2
-+2:
-+        pld [r0, #16]
-+        pld [r1, #16]
-+
-+        /* Load the next double-word from each string.  */
-+        ldrd    r2, r3, [r0], #8
-+        ldrd    r4, r5, [r1], #8
-+
-+        magic_compare_and_branch w1=r2, w2=r4, label=return_24
-+        magic_compare_and_branch w1=r3, w2=r5, label=return_35
-+        b       2b
-+
-+do_align:
-+        /* Is the first string word-aligned?  */
-+        ands    ip, r0, #3
-+        beq     word_aligned_r0
-+
-+        /* Fast compare byte by byte until the first string is word-aligned.  */
-+        /* The offset of r0 from a word boundary is in ip. Thus, the number of bytes
-+        to read until the next word boundary is 4-ip.  */
-+        bic     r0, r0, #3
-+        ldr     r2, [r0], #4
-+        lsls    ip, ip, #31
-+        beq     byte2
-+        bcs     byte3
-+
-+byte1:
-+        ldrb    ip, [r1], #1
-+        uxtb    r3, r2, ror #BYTE1_OFFSET
-+        subs    ip, r3, ip
-+        bne     fast_return
-+        m_cbz   reg=r3, label=fast_return
-+
-+byte2:
-+        ldrb    ip, [r1], #1
-+        uxtb    r3, r2, ror #BYTE2_OFFSET
-+        subs    ip, r3, ip
-+        bne     fast_return
-+        m_cbz   reg=r3, label=fast_return
-+
-+byte3:
-+        ldrb    ip, [r1], #1
-+        uxtb    r3, r2, ror #BYTE3_OFFSET
-+        subs    ip, r3, ip
-+        bne     fast_return
-+        m_cbnz  reg=r3, label=word_aligned_r0
-+
-+fast_return:
-+        mov     r0, ip
-+        bx      lr
-+
-+word_aligned_r0:
-+        init
-+        /* The first string is word-aligned.  */
-+        /* Is the second string word-aligned?  */
-+        ands    ip, r1, #3
-+        bne     strcmp_unaligned
-+
-+word_aligned:
-+        /* The strings are word-aligned. */
-+        /* Is the first string double-word aligned?  */
-+        tst     r0, #4
-+        beq     doubleword_aligned_r0
-+
-+        /* If r0 is not double-word aligned yet, align it by loading
-+        and comparing the next word from each string.  */
-+        ldr     r2, [r0], #4
-+        ldr     r4, [r1], #4
-+        magic_compare_and_branch w1=r2 w2=r4 label=return_24
-+
-+doubleword_aligned_r0:
-+        /* Get here when r0 is double-word aligned.  */
-+        /* Is r1 doubleword_aligned?  */
-+        tst     r1, #4
-+        beq     doubleword_aligned
-+
-+        /* Get here when the strings to compare are word-aligned,
-+        r0 is double-word aligned, but r1 is not double-word aligned.  */
-+
-+        /* Initialize the queue.  */
-+        ldr     r5, [r1], #4
-+
-+        /* Compare two words in every iteration.  */
-+        .p2align        2
-+3:
-+        pld [r0, #16]
-+        pld [r1, #16]
-+
-+        /* Load the next double-word from each string and compare.  */
-+        ldrd    r2, r3, [r0], #8
-+        magic_compare_and_branch w1=r2 w2=r5 label=return_25
-+        ldrd    r4, r5, [r1], #8
-+        magic_compare_and_branch w1=r3 w2=r4 label=return_34
-+        b       3b
-+
-+        .macro miscmp_word offsetlo offsethi
-+        /* Macro to compare misaligned strings.  */
-+        /* r0, r1 are word-aligned, and at least one of the strings
-+        is not double-word aligned.  */
-+        /* Compare one word in every loop iteration.  */
-+        /* OFFSETLO is the original bit-offset of r1 from a word-boundary,
-+        OFFSETHI is 32 - OFFSETLO (i.e., offset from the next word).  */
-+
-+        /* Initialize the shift queue.  */
-+        ldr     r5, [r1], #4
-+
-+        /* Compare one word from each string in every loop iteration.  */
-+        .p2align        2
-+7:
-+        ldr     r3, [r0], #4
-+        S2LOMEM r5, r5, #\offsetlo
-+        magic_find_zero_bytes w1=r3
-+        cmp     r7, ip, S2HIMEM #\offsetlo
-+        and     r2, r3, r6, S2LOMEM #\offsetlo
-+        it      eq
-+        cmpeq   r2, r5
-+        bne     return_25
-+        ldr     r5, [r1], #4
-+        cmp     ip, #0
-+        eor r3, r2, r3
-+        S2HIMEM r2, r5, #\offsethi
-+        it      eq
-+        cmpeq   r3, r2
-+        bne     return_32
-+        b       7b
-+        .endm /* miscmp_word */
-+
-+strcmp_unaligned:
-+        /* r0 is word-aligned, r1 is at offset ip from a word.  */
-+        /* Align r1 to the (previous) word-boundary.  */
-+        bic     r1, r1, #3
-+
-+        /* Unaligned comparison word by word using LDRs. */
-+        cmp     ip, #2
-+        beq     miscmp_word_16                    /* If ip == 2.  */
-+        bge     miscmp_word_24                    /* If ip == 3.  */
-+        miscmp_word offsetlo=8 offsethi=24        /* If ip == 1.  */
-+miscmp_word_16:  miscmp_word offsetlo=16 offsethi=16
-+miscmp_word_24:  miscmp_word offsetlo=24 offsethi=8
-+
-+
-+return_32:
-+        setup_return w1=r3, w2=r2
-+        b       do_return
-+return_34:
-+        setup_return w1=r3, w2=r4
-+        b       do_return
-+return_25:
-+        setup_return w1=r2, w2=r5
-+        b       do_return
-+return_35:
-+        setup_return w1=r3, w2=r5
-+        b       do_return
-+return_24:
-+        setup_return w1=r2, w2=r4
-+
-+do_return:
-+
-+#ifdef __ARMEB__
-+        mov     r0, ip
-+#else /* not  __ARMEB__ */
-+        rev     r0, ip
-+#endif /* not  __ARMEB__ */
-+
-+        /* Restore temporaries early, before computing the return value.  */
-+        ldrd    r6, r7, [sp]
-+        ldrd    r4, r5, [sp, #8]
-+        adds    sp, sp, #16
-+
-+        /* There is a zero or a different byte between r1 and r2.  */
-+        /* r0 contains a mask of all-zero bytes in r1.  */
-+        /* Using r0 and not ip here because cbz requires low register.  */
-+        m_cbz   reg=r0, label=compute_return_value
-+        clz     r0, r0
-+        /* r0 contains the number of bits on the left of the first all-zero byte in r1.  */
-+        rsb     r0, r0, #24
-+        /* Here, r0 contains the number of bits on the right of the first all-zero byte in r1.  */
-+        lsr     r1, r1, r0
-+        lsr     r2, r2, r0
-+
-+compute_return_value:
-+        movs    r0, #1
-+        cmp     r1, r2
-+        /* The return value is computed as follows.
-+        If r1>r2 then (C==1 and Z==0) and LS doesn't hold and r0 is #1 at return.
-+        If r1<r2 then (C==0 and Z==0) and we execute SBC with carry_in=0,
-+        which means r0:=r0-r0-1 and r0 is #-1 at return.
-+        If r1=r2 then (C==1 and Z==1) and we execute SBC with carry_in=1,
-+        which means r0:=r0-r0 and r0 is #0 at return.
-+        (C==0 and Z==1) cannot happen because the carry bit is "not borrow".  */
-+        it      ls
-+        sbcls   r0, r0, r0
-+        bx      lr
-+END(strcmp)
 diff --git a/libc/arch-arm/tegra2/bionic/strcpy.S b/libc/arch-arm/tegra2/bionic/strcpy.S
-new file mode 100644
-index 0000000..61625e5
---- /dev/null
+index 21dafda..61625e5 100644
+--- a/libc/arch-arm/tegra2/bionic/strcpy.S
 +++ b/libc/arch-arm/tegra2/bionic/strcpy.S
-@@ -0,0 +1,133 @@
-+/*
-+ * Copyright (C) 2010 The Android Open Source Project
-+ * Copyright (c) 2008 ARM Ltd
-+ * All rights reserved.
-+ *
-+ * Redistribution and use in source and binary forms, with or without
-+ * modification, are permitted provided that the following conditions
-+ * are met:
-+ * 1. Redistributions of source code must retain the above copyright
-+ *    notice, this list of conditions and the following disclaimer.
-+ * 2. Redistributions in binary form must reproduce the above copyright
-+ *    notice, this list of conditions and the following disclaimer in the
-+ *    documentation and/or other materials provided with the distribution.
-+ * 3. The name of the company may not be used to endorse or promote
-+ *    products derived from this software without specific prior written
-+ *    permission.
-+ *
-+ * THIS SOFTWARE IS PROVIDED BY ARM LTD ``AS IS'' AND ANY EXPRESS OR IMPLIED
-+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-+ * IN NO EVENT SHALL ARM LTD BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
-+ * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-+ *
-+ * Android adaptation and tweak by Jim Huang <jserv@0xlab.org>.
-+ */
-+
-+#include <machine/cpu-features.h>
-+#include <machine/asm.h>
-+
-+ENTRY(strcpy)
+@@ -33,7 +33,7 @@
+ #include <machine/asm.h>
+ 
+ ENTRY(strcpy)
+-	PLD(r1, #0)
 +	pld [r1, #0]
-+	eor	r2, r0, r1
-+	mov	ip, r0
-+	tst	r2, #3
-+	bne	4f
-+	tst	r1, #3
-+	bne	3f
-+5:
-+	str	r5, [sp, #-4]!
-+	mov	r5, #0x01
-+	orr	r5, r5, r5, lsl #8
-+	orr	r5, r5, r5, lsl #16
-+
-+	str	r4, [sp, #-4]!
-+	tst	r1, #4
-+	ldr	r3, [r1], #4
-+	beq	2f
-+	sub	r2, r3, r5
-+	bics	r2, r2, r3
-+	tst	r2, r5, lsl #7
-+	itt	eq
-+	streq	r3, [ip], #4
-+	ldreq	r3, [r1], #4
-+	bne	1f
-+       /* Inner loop.  We now know that r1 is 64-bit aligned, so we
-+	  can safely fetch up to two words.  This allows us to avoid
-+	  load stalls.  */
-+	.p2align 2
-+2:
+ 	eor	r2, r0, r1
+ 	mov	ip, r0
+ 	tst	r2, #3
+@@ -62,7 +62,7 @@ ENTRY(strcpy)
+ 	  load stalls.  */
+ 	.p2align 2
+ 2:
+-	PLD(r1, #8)
 +	pld [r1, #8]
-+	ldr	r4, [r1], #4
-+	sub	r2, r3, r5
-+	bics	r2, r2, r3
-+	tst	r2, r5, lsl #7
-+	sub	r2, r4, r5
-+	bne	1f
-+	str	r3, [ip], #4
-+	bics	r2, r2, r4
-+	tst	r2, r5, lsl #7
-+	itt	eq
-+	ldreq	r3, [r1], #4
-+	streq	r4, [ip], #4
-+	beq	2b
-+	mov	r3, r4
-+1:
-+#ifdef __ARMEB__
-+	rors	r3, r3, #24
-+#endif
-+	strb	r3, [ip], #1
-+	tst	r3, #0xff
-+#ifdef __ARMEL__
-+	ror	r3, r3, #8
-+#endif
-+	bne	1b
-+	ldr	r4, [sp], #4
-+	ldr	r5, [sp], #4
-+	bx	lr
-+
-+       /* Strings have the same offset from word alignment, but it's
-+	  not zero.  */
-+3:
-+	tst	r1, #1
-+	beq	1f
-+	ldrb	r2, [r1], #1
-+	strb	r2, [ip], #1
-+	cmp	r2, #0
-+	it	eq
-+	bxeq	lr
-+1:
-+	tst	r1, #2
-+	beq	5b
-+	ldrh	r2, [r1], #2
-+#ifdef __ARMEB__
-+	tst	r2, #0xff00
-+	iteet	ne
-+	strneh	r2, [ip], #2
-+	lsreq	r2, r2, #8
-+	streqb	r2, [ip]
-+	tstne	r2, #0xff
-+#else
-+	tst	r2, #0xff
-+	itet	ne
-+	strneh	r2, [ip], #2
-+	streqb	r2, [ip]
-+	tstne	r2, #0xff00
-+#endif
-+	bne	5b
-+	bx	lr
-+
-+       /* src and dst do not have a common word-alignement.  Fall back to
-+	  byte copying.  */
-+4:
-+	ldrb	r2, [r1], #1
-+	strb	r2, [ip], #1
-+	cmp	r2, #0
-+	bne	4b
-+	bx	lr
-+END(strcpy)
-diff --git a/libc/arch-arm/tegra2/bionic/strlen.S b/libc/arch-arm/tegra2/bionic/strlen.S
-new file mode 100644
-index 0000000..125e92f
---- /dev/null
-+++ b/libc/arch-arm/tegra2/bionic/strlen.S
-@@ -0,0 +1,111 @@
-+/* Copyright (c) 2010-2011, Linaro Limited
-+   All rights reserved.
-+
-+   Redistribution and use in source and binary forms, with or without
-+   modification, are permitted provided that the following conditions
-+   are met:
-+
-+      * Redistributions of source code must retain the above copyright
-+      notice, this list of conditions and the following disclaimer.
-+
-+      * Redistributions in binary form must reproduce the above copyright
-+      notice, this list of conditions and the following disclaimer in the
-+      documentation and/or other materials provided with the distribution.
-+
-+      * Neither the name of Linaro Limited nor the names of its
-+      contributors may be used to endorse or promote products derived
-+      from this software without specific prior written permission.
-+
-+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-+
-+   Written by Dave Gilbert <david.gilbert@linaro.org>
-+
-+   This strlen routine is optimised on a Cortex-A9 and should work on
-+   all ARMv7 processors.   This routine is reasonably fast for short
-+   strings, but is probably slower than a simple implementation if all
-+   your strings are very short */
-+
-+@ 2011-02-08 david.gilbert@linaro.org
-+@    Extracted from local git 6848613a
-+
-+
-+@ this lets us check a flag in a 00/ff byte easily in either endianness
-+#ifdef __ARMEB__
-+#define CHARTSTMASK(c) 1<<(31-(c*8))
-+#else
-+#define CHARTSTMASK(c) 1<<(c*8)
-+#endif
-+
-+@-----------------------------------------------------------------------------------------------------------------------------
-+	.syntax unified
-+	.arch armv7-a
-+
-+	.thumb_func
-+	.align 2
-+	.p2align 4,,15
-+	.global strlen
-+	.type strlen,%function
-+strlen:
-+	@ r0 = string
-+	@ returns count of bytes in string not including terminator
-+	mov	r1, r0
-+	push	{ r4,r6 }
-+	mvns	r6, #0		@ all F
-+	movs	r4, #0
-+	tst	r0, #7
-+	beq	2f
-+
-+1:
-+	ldrb	r2, [r1], #1
-+	tst	r1, #7		@ Hit alignment yet?
-+	cbz	r2, 10f		@ Exit if we found the 0
-+	bne	1b
-+
-+	@ So we're now aligned
-+2:
-+	ldmia	r1!,{r2,r3}
-+	uadd8	r2, r2, r6	@ Parallel add 0xff - sets the GE bits for anything that wasn't 0
-+	sel	r2, r4, r6	@ bytes are 00 for none-00 bytes, or ff for 00 bytes - NOTE INVERSION
-+	uadd8	r3, r3, r6	@ Parallel add 0xff - sets the GE bits for anything that wasn't 0
-+	sel	r3, r2, r6	@ bytes are 00 for none-00 bytes, or ff for 00 bytes - NOTE INVERSION
-+	cmp	r3, #0
-+	beq	2b
-+
-+strlenendtmp:
-+	@ One (or more) of the bytes we loaded was 0 - but which one?
-+	@ r2 has the mask corresponding to the first loaded word
-+	@ r3 has a combined mask of the two words - but if r2 was all-non 0 
-+	@ then it's just the 2nd words
-+	cmp	r2, #0
-+	itte	eq
-+	moveq	r2, r3		@ the end is in the 2nd word
-+	subeq	r1,r1,#3
-+	subne	r1,r1,#7
-+
-+	@ r1 currently points to the 2nd byte of the word containing the 0
-+	tst	r2, # CHARTSTMASK(0)	@ 1st character
-+	bne	10f
-+	adds	r1,r1,#1
-+	tst	r2, # CHARTSTMASK(1)	@ 2nd character
-+	ittt	eq
-+	addeq	r1,r1,#1
-+	tsteq	r2, # (3<<15)	@ 2nd & 3rd character
-+	@ If not the 3rd must be the last one
-+	addeq	r1,r1,#1
-+
-+10:
-+	@ r0 is still at the beginning, r1 is pointing 1 byte after the terminator
-+	sub	r0, r1, r0
-+	subs	r0, r0, #1
-+	pop	{ r4, r6 }
-+	bx	lr
+ 	ldr	r4, [r1], #4
+ 	sub	r2, r3, r5
+ 	bics	r2, r2, r3
 diff --git a/libc/arch-arm/tegra2/tegra2.mk b/libc/arch-arm/tegra2/tegra2.mk
-new file mode 100644
-index 0000000..5140036
---- /dev/null
+index aded722..5140036 100644
+--- a/libc/arch-arm/tegra2/tegra2.mk
 +++ b/libc/arch-arm/tegra2/tegra2.mk
-@@ -0,0 +1,13 @@
-+$(call libc-add-cpu-variant-src,MEMCPY,arch-arm/tegra2/bionic/memcpy.S)
-+$(call libc-add-cpu-variant-src,MEMSET,arch-arm/tegra2/bionic/memset.S)
-+$(call libc-add-cpu-variant-src,STRCMP,arch-arm/tegra2/bionic/strcmp.S)
-+$(call libc-add-cpu-variant-src,STRCPY,arch-arm/tegra2/bionic/strcpy.S)
-+$(call libc-add-cpu-variant-src,MEMMOVE,bionic/memmove.c.arm)
-+$(call libc-add-cpu-variant-src,BCOPY,string/bcopy.c.arm)
+@@ -4,10 +4,10 @@ $(call libc-add-cpu-variant-src,STRCMP,arch-arm/tegra2/bionic/strcmp.S)
+ $(call libc-add-cpu-variant-src,STRCPY,arch-arm/tegra2/bionic/strcpy.S)
+ $(call libc-add-cpu-variant-src,MEMMOVE,bionic/memmove.c.arm)
+ $(call libc-add-cpu-variant-src,BCOPY,string/bcopy.c.arm)
+-
 +$(call libc-add-cpu-variant-src,__STRCAT_CHK,bionic/__strcat_chk.cpp)
 +$(call libc-add-cpu-variant-src,__STRCPY_CHK,bionic/__strcpy_chk.cpp)
-+$(call libc-add-cpu-variant-src,STRCAT,string/strcat.c)
-+
-+# armv7-a (non neon) ones from cm10.1
-+$(call libc-add-cpu-variant-src,STRLEN,arch-arm/tegra2/bionic/strlen.S)
-+$(call libc-add-cpu-variant-src,MEMCHR,arch-arm/tegra2/bionic/memchr.S)
+ $(call libc-add-cpu-variant-src,STRCAT,string/strcat.c)
+ 
+ # armv7-a (non neon) ones from cm10.1
+ $(call libc-add-cpu-variant-src,STRLEN,arch-arm/tegra2/bionic/strlen.S)
+ $(call libc-add-cpu-variant-src,MEMCHR,arch-arm/tegra2/bionic/memchr.S)
+-
