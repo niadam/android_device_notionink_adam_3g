@@ -5,3 +5,4 @@
 rild.libpath=/system/lib/libmbm-ril.so	  	
 rild.libargs=-d /dev/ttyACM0 -i wwan0
 
+persist.sys.usb.config=mtp,adb
