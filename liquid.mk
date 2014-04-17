@@ -59,6 +59,9 @@ TARGET_BOOTANIMATION_USE_RGB565 := true
 #TARGET_SCREEN_WIDTH := 1024
 #TARGET_SCREEN_HEIGHT := 600
 
+# Use custom bootanimation.zip
+PRODUCT_BOOTANIMATION := device/notionink/adam_common/files/1024_bootanimation.zip
+
 # OTA ID
 PRODUCT_PROPERTY_OVERRIDES += \
     otaupdater.otaid=liquidadam3g
